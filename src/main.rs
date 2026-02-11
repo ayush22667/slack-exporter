@@ -9,8 +9,6 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::Mutex;
 
-const CHANNEL_ID: &str = "C0ACZK80RPB";
-
 // Global logger for writing to both console and file
 static LOG_FILE: Mutex<Option<File>> = Mutex::new(None);
 
@@ -397,6 +395,7 @@ fn clean_rust_option(value: &str) -> String {
 async fn fetch_messages(
     client: &Client,
     token: &str,
+    channel_id: &str,
     oldest: Option<f64>,
     latest: Option<f64>,
 ) -> Result<Vec<SlackMessage>> {
@@ -407,7 +406,7 @@ async fn fetch_messages(
     loop {
         let mut url = format!(
             "https://slack.com/api/conversations.history?channel={}",
-            CHANNEL_ID
+            channel_id
         );
 
         if let Some(oldest_ts) = oldest {
@@ -541,7 +540,10 @@ async fn main() -> Result<()> {
     let token = env::var("SLACK_TOKEN")
         .context("SLACK_TOKEN environment variable not set. Please create a .env file with your token.")?;
 
-    log!("Fetching messages from Slack channel: {}", CHANNEL_ID);
+    let channel_id = env::var("CHANNEL_ID")
+        .context("CHANNEL_ID environment variable not set. Please add it to your .env file.")?;
+
+    log!("Fetching messages from Slack channel: {}", channel_id);
 
     log!("\nHow many days back do you want to fetch messages?");
     log!("  0 = only today");
@@ -577,7 +579,7 @@ async fn main() -> Result<()> {
     let client = Client::new();
 
     log!("\n[FETCH] Fetching messages...");
-    let messages = fetch_messages(&client, &token, oldest, latest).await?;
+    let messages = fetch_messages(&client, &token, &channel_id, oldest, latest).await?;
 
     log!("[FETCH] Fetched {} raw messages", messages.len());
 
