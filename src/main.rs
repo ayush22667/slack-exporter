@@ -63,8 +63,8 @@ struct Attachment {
 
 #[derive(Debug)]
 struct ParsedMessage {
-    timestamp: DateTime<Utc>,
-    user: String,
+    _timestamp: DateTime<Utc>,
+    _user: String,
     text: String,
     connector: Option<String>,
     flow: Option<String>,
@@ -74,29 +74,6 @@ struct ParsedMessage {
 }
 
 impl ParsedMessage {
-    fn from_slack_message(msg: &SlackMessage) -> Self {
-        let timestamp = parse_slack_timestamp(&msg.ts);
-        let user = msg.user.clone()
-            .or_else(|| msg.bot_id.clone())
-            .unwrap_or_else(|| "Unknown".to_string());
-
-        // Extract text from various sources
-        let text = extract_message_text(msg);
-
-        let (connector, flow, sub_flow, error_code, error_message) = parse_grafana_message(&text);
-
-        Self {
-            timestamp,
-            user,
-            text,
-            connector,
-            flow,
-            sub_flow,
-            error_code,
-            error_message,
-        }
-    }
-
     fn from_slack_message_multiple(msg: &SlackMessage) -> Vec<Self> {
         let timestamp = parse_slack_timestamp(&msg.ts);
         let user = msg.user.clone()
@@ -112,8 +89,8 @@ impl ParsedMessage {
         if alerts.is_empty() {
             // No alerts found, return single message with original text
             vec![Self {
-                timestamp,
-                user: user.clone(),
+                _timestamp: timestamp,
+                _user: user.clone(),
                 text: text.clone(),
                 connector: None,
                 flow: None,
@@ -125,8 +102,8 @@ impl ParsedMessage {
             // Create a ParsedMessage for each alert
             alerts.into_iter().map(|(connector, flow, sub_flow, error_code, error_message)| {
                 Self {
-                    timestamp,
-                    user: user.clone(),
+                    _timestamp: timestamp,
+                    _user: user.clone(),
                     text: text.clone(),
                     connector,
                     flow,
@@ -192,89 +169,6 @@ fn parse_slack_timestamp(ts: &str) -> DateTime<Utc> {
     let secs = timestamp as i64;
     let nsecs = ((timestamp - secs as f64) * 1_000_000_000.0) as u32;
     Utc.timestamp_opt(secs, nsecs).unwrap()
-}
-
-fn parse_grafana_message(text: &str) -> (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>) {
-    let mut connector = None;
-    let mut flow = None;
-    let mut sub_flow = None;
-    let mut error_code = None;
-    let mut error_message = None;
-
-    for line in text.lines() {
-        let line = line.trim();
-
-        // Handle both formats: "• Connector:" and "• *Connector:*"
-        if line.contains("Connector:") {
-            let value = line
-                .split("Connector:")
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .replace("*", "")
-                .trim()
-                .to_string();
-            if !value.is_empty() {
-                connector = Some(value);
-            }
-        } else if line.contains("Flow:") && !line.contains("Sub-flow:") {
-            let value = line
-                .split("Flow:")
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .replace("*", "")
-                .trim()
-                .to_string();
-            if !value.is_empty() {
-                flow = Some(value);
-            }
-        } else if line.contains("Sub-flow:") {
-            let value = line
-                .split("Sub-flow:")
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .replace("*", "")
-                .trim()
-                .to_string();
-            if !value.is_empty() {
-                sub_flow = Some(value);
-            }
-        } else if line.contains("Error code:") {
-            let value = line
-                .split("Error code:")
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .replace("*", "")
-                .trim()
-                .to_string();
-
-            // Strip Some("...") wrapper and handle None
-            let cleaned = clean_rust_option(&value);
-            if !cleaned.is_empty() && cleaned != "None" {
-                error_code = Some(cleaned);
-            }
-        } else if line.contains("Error message:") {
-            let value = line
-                .split("Error message:")
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .replace("*", "")
-                .trim()
-                .to_string();
-
-            // Strip Some("...") wrapper and handle None
-            let cleaned = clean_rust_option(&value);
-            if !cleaned.is_empty() && cleaned != "None" {
-                error_message = Some(cleaned);
-            }
-        }
-    }
-
-    (connector, flow, sub_flow, error_code, error_message)
 }
 
 fn parse_multiple_grafana_messages(text: &str) -> Vec<(Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> {
@@ -475,7 +369,7 @@ fn export_to_excel(messages: &[ParsedMessage], filename: &str) -> Result<()> {
     let mut workbook = Workbook::new();
 
     log!("[EXCEL] Adding worksheet...");
-    let mut worksheet = workbook.add_worksheet();
+    let worksheet = workbook.add_worksheet();
 
     log!("[EXCEL] Creating header format...");
     let header_format = Format::new()
